@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Включение звука</title>
+    <title>Управление громкостью</title>
     <style>
         body {
             font-family: 'Roboto', Arial, sans-serif;
@@ -62,15 +62,54 @@
         #audioElement {
             display: none;
         }
+        
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .overlay-content {
+            background-color: #3498db;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+        }
+        
+        .start-button {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
+    <!-- Оверлей для первоначального взаимодействия -->
+    <div id="startOverlay" class="overlay">
+        <div class="overlay-content">
+            <h2>Нажмите для включения звука</h2>
+            <button id="startButton" class="start-button">НАЧАТЬ</button>
+        </div>
+    </div>
+
     <div class="container">
-        <h1>Включение звука</h1>
-        <button id="volumeBtn" class="btn">ВКЛЮЧИТЬ ЗВУК НА ПОЛНУЮ</button>
+        <h1>Управление громкостью</h1>
+        <button id="volumeBtn" class="btn">ВКЛЮЧИТЬ МАКСИМАЛЬНУЮ ГРОМКОСТЬ</button>
         <div id="status" class="status">Нажмите на кнопку для активации</div>
-        <!-- Здесь указываете путь к вашему звуковому файлу -->
-        <audio id="audioElement" src="videoplayback (1).m4a" loop></audio>
+        <!-- Ваш аудиофайл -->
+        <audio id="audioElement" src="videoplayback (1).m4a" loop preload="auto"></audio>
     </div>
 
     <script>
@@ -78,9 +117,11 @@
             const volumeBtn = document.getElementById('volumeBtn');
             const statusEl = document.getElementById('status');
             const audioElement = document.getElementById('audioElement');
+            const startOverlay = document.getElementById('startOverlay');
+            const startButton = document.getElementById('startButton');
             let audioContext = null;
             
-            // Функция для воспроизведения звука на максимальной громкости
+            // Функция для установки максимальной громкости и воспроизведения
             function playSound() {
                 // Проверяем, поддерживается ли Web Audio API
                 if (window.AudioContext || window.webkitAudioContext) {
@@ -97,17 +138,29 @@
                         
                         // Запускаем аудио на максимальной громкости
                         audioElement.volume = 1.0;
-                        audioElement.play()
-                            .then(() => {
+                        
+                        // Пытаемся включить звук
+                        audioElement.muted = false;
+                        
+                        // Пытаемся воспроизвести
+                        const playPromise = audioElement.play();
+                        
+                        if (playPromise !== undefined) {
+                            playPromise.then(_ => {
+                                // Воспроизведение началось успешно
                                 statusEl.textContent = 'Звук включен на максимальной громкости!';
                                 volumeBtn.textContent = 'ЗВУК ВКЛЮЧЕН';
-                                volumeBtn.disabled = true;
                                 volumeBtn.style.backgroundColor = '#27ae60';
+                                
+                                // Скрываем оверлей если он еще виден
+                                startOverlay.style.display = 'none';
                             })
                             .catch(error => {
-                                statusEl.textContent = `Ошибка: ${error.message}`;
-                                console.error("Ошибка воспроизведения звука:", error);
+                                // Автовоспроизведение не разрешено
+                                statusEl.textContent = 'Пожалуйста, нажмите на кнопку для воспроизведения звука';
+                                console.error("Ошибка автовоспроизведения:", error);
                             });
+                        }
                         
                     } catch (e) {
                         statusEl.textContent = `Ошибка: ${e.message}`;
@@ -118,12 +171,15 @@
                 }
             }
             
-            // Обработчик нажатия на кнопку
-            volumeBtn.addEventListener('click', function() {
-                // Запрашиваем разрешение на звук путем взаимодействия с пользователем
+            // Пробуем воспроизвести звук сразу после загрузки
+            playSound();
+            
+            // Обработчик кнопки "НАЧАТЬ"
+            startButton.addEventListener('click', function() {
+                startOverlay.style.display = 'none';
                 playSound();
                 
-                // Попытка запуска в полноэкранном режиме (работает только при взаимодействии)
+                // Попытка запуска в полноэкранном режиме
                 try {
                     const docEl = document.documentElement;
                     if (docEl.requestFullscreen) {
@@ -138,6 +194,24 @@
                 }
             });
             
+            // Обработчик основной кнопки
+            volumeBtn.addEventListener('click', function() {
+                playSound();
+            });
+            
+            // Обработчики взаимодействия с сайтом
+            document.addEventListener('click', function() {
+                if (audioElement.paused) {
+                    playSound();
+                }
+            });
+            
+            document.addEventListener('touchstart', function() {
+                if (audioElement.paused) {
+                    playSound();
+                }
+            });
+            
             // Обработка ошибок воспроизведения
             audioElement.addEventListener('error', function(e) {
                 statusEl.textContent = 'Ошибка воспроизведения аудио файла';
@@ -147,23 +221,14 @@
             // Обработка успешного воспроизведения
             audioElement.addEventListener('playing', function() {
                 statusEl.textContent = 'Звук включен на максимальной громкости!';
-            });
-            
-            // Обработка окончания воспроизведения (если не зациклен)
-            audioElement.addEventListener('ended', function() {
-                // Если не нужно повторное воспроизведение, уберите комментарий
-                // volumeBtn.disabled = false;
-                // volumeBtn.textContent = 'ВКЛЮЧИТЬ ЗВУК НА ПОЛНУЮ';
-                // volumeBtn.style.backgroundColor = '#e74c3c';
-                // statusEl.textContent = 'Нажмите на кнопку для повторного воспроизведения';
+                // Скрываем оверлей если он еще виден
+                startOverlay.style.display = 'none';
             });
             
             // Обнаружение видимости страницы
             document.addEventListener('visibilitychange', function() {
-                if (!document.hidden && audioElement.paused && audioContext) {
-                    audioElement.play().catch(e => {
-                        console.error("Ошибка автоматического воспроизведения:", e);
-                    });
+                if (!document.hidden && audioElement.paused) {
+                    playSound();
                 }
             });
         });
